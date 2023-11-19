@@ -1,0 +1,17 @@
+# venvs
+venv
+
+# cache
+__pycache__/
+
+# logs
+*.log
+
+# dataset
+*.csv
+
+# models
+*.joblib
+
+# .env
+.env
