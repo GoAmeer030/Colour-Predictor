@@ -35,15 +35,6 @@ This project allows users to collect data from a **color prediction trading or g
 -   It uses `RandomForestClassifier` from `scikit-learn`.
 -   Follow the instructions in the notebook to train and save the model as `model.joblib`.
 
-### Pre-trained Model (`model.joblib`) and Prediction Script (`predict.py`)
-
--   The pre-trained model (`model.joblib`) can be directly downloaded from the releases section.
--   Use `predict.py` script to make predictions using the pre-trained model:
-    ```bash
-    python predict.py
-    ```
--   Enter the value to predict when prompted.
-
 ## Important Notices and Cautions
 
 -   **Educational Purpose Only:** This project is for educational purposes only to showcase machine learning capabilities and is not meant for actual gambling or financial investment.

@@ -12,6 +12,7 @@ __pycache__/
 
 # models
 *.joblib
+*.h5
 
 # .env
 .env

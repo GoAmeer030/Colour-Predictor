@@ -6,9 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from bs4 import BeautifulSoup
 
-import pandas as pd
-
-from dotenv import load_dotenv
+import csv
 
 import time
 import os
@@ -20,10 +18,7 @@ logger.setLevel(logging.INFO)
 file_handler = logging.FileHandler('scrape.log')
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
-
 logger.addHandler(file_handler)
-
-load_dotenv()
 
 LOGIN_NUMBER = os.getenv('LOGIN_NUMBER')
 LOGIN_PASSWORD = os.getenv('LOGIN_PASSWORD')
@@ -41,10 +36,48 @@ XPATH_NEXT_BUTTON = '/html/body/div/div[2]/div[2]/div[3]/div/div[3]/ul/li[2]/i[2
 FILE_NAME = "data.csv"
 TIME_INTERVAL = 180
 
-def remove_duplicates():
-    df = pd.read_csv(FILE_NAME, header=None)
-    df = df.drop_duplicates()
-    df.to_csv(FILE_NAME, index=False, header=None)
+def remove_duplicates_from_csv(file_name=FILE_NAME):
+    unique_lines = set()
+    with open(file_name, 'r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header
+        for line in reader:
+            unique_lines.add(tuple(line))
+    
+    with open(file_name, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Period', 'Price', 'Number', 'Result Color'])
+        writer.writerows(unique_lines)
+    
+    logger.info(f"Duplicates removed from '{file_name}'.")
+
+def is_in_file(row, file_name):
+    with open(file_name, mode="r", newline="") as file:
+        reader = csv.reader(file)
+    
+        for line in reader:
+            if row == line:
+                return True
+    
+    return False
+
+def save_data(table_data):
+    data_list = [list(row) for row in table_data]
+
+    first = not os.path.exists(FILE_NAME) or os.path.getsize(FILE_NAME) == 0
+
+    with open(FILE_NAME, mode="a", newline="") as file:
+        writer = csv.writer(file)
+
+        if first:
+            header = list(table_data[0].keys())
+            writer.writerow(header)
+
+        for row in data_list:
+            if not is_in_file(row, FILE_NAME):
+                writer.writerow(row)
+
+    logger.info('Data updated')
 
 def login():
     number_input = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, XPATH_NUMBER_INPUT)))
@@ -88,31 +121,12 @@ def scrape_data():
                 result_color = 2
             elif 'background: violet;' in result_style:
                 result_color = 3
-            
+
             table_data.append([period, price, number, result_color])
 
     return table_data
 
-def save_data(table_data):
-    df = pd.DataFrame(table_data)
-
-    old_df = pd.read_csv(FILE_NAME, header=None)
-    new_df = df[~df.isin(old_df).all(axis=1)]
-
-    first = not os.path.exists(FILE_NAME) or os.path.getsize(FILE_NAME) == 0
-    new_df.to_csv(FILE_NAME, mode="a", index=False, header=first)
-    logger.info('Data updated')
-    
-if __name__ == '__main__':
-    
-    option = webdriver.EdgeOptions()
-    option.add_argument('--disable-extensions')
-    option.add_experimental_option('useAutomationExtension', False)
-    
-    driver = webdriver.Edge(options=option)
-
-    driver.get(SITE_URL)
-
+def main():
     try:
         login()
     except Exception as e:
@@ -121,44 +135,45 @@ if __name__ == '__main__':
     win_button = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, XPATH_WIN_BUTTON)))
     win_button.click()
 
-    time.sleep(5)
-
+    count = 0
     while True:
-        count = 0
-
         if count == 0:
-            for _ in range(120):
+            for _ in range(180):
                 try:
                     table_data = scrape_data()
-                except Exception as e:
-                    logger.error(f'An error occurred while scraping the data: {e}')
-                    break
-
-                try:
                     save_data(table_data)
+                    next_button = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, XPATH_NEXT_BUTTON)))
+                    driver.execute_script("arguments[0].click()", next_button)
                 except Exception as e:
-                    logger.error(f'An error occurred while saving the data: {e}')
+                    logger.error(f'An error occurred during data scraping/saving: {e}')
                     break
-
-                next_button = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, XPATH_NEXT_BUTTON)))
-                driver.execute_script("arguments[0].click()", next_button)
-
-            count += 1
-
+                count += 1
         else:
             try:
+                driver.get(SITE_URL)
                 table_data = scrape_data()
-            except Exception as e:
-                logger.error(f'An error occurred while scraping the data: {e}')
-                break
-
-            try:
                 save_data(table_data)
             except Exception as e:
-                logger.error(f'An error occurred while saving the data: {e}')
+                logger.error(f'An error occurred during data scraping/saving: {e}')
                 break
 
-        remove_duplicates()
-        
-        logger.info('Waiting for 3 minutes')
+        remove_duplicates_from_csv()
+
+        logger.info(f'Waiting for {TIME_INTERVAL} seconds')
         time.sleep(TIME_INTERVAL)
+    
+
+if __name__ == '__main__':
+
+    option = webdriver.ChromeOptions()
+
+    option.add_argument('--no-sandbox')
+    option.add_argument('--disable-setuid-sandbox')
+    option.add_argument('--disable-extensions')
+    option.add_experimental_option('useAutomationExtension', False)
+
+    driver = webdriver.Chrome(options=option)
+
+    driver.get(SITE_URL)
+    
+    main()
