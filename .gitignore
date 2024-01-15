@@ -12,7 +12,7 @@ logs/
 dataset/
 
 # models
-models/
 
 # .env
 .env
+.idea
